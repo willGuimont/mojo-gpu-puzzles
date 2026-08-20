@@ -26,6 +26,7 @@ comptime THREADS_PER_BLOCK = (TPB, 1)
 comptime dtype = DType.float32
 comptime layout = row_major[SIZE]()
 comptime LayoutType = type_of(layout)
+comptime WINDOW_SIZE = 3
 
 
 def pooling(
@@ -41,7 +42,27 @@ def pooling(
 
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
-    # FILL ME IN (roughly 10 lines)
+
+    if global_i < size:
+        shared[local_i] = a[global_i]
+    barrier()
+
+    # Allows arbitrary window size
+    var sum = Scalar[dtype](0.0)
+    for i in range(max(0, local_i - WINDOW_SIZE + 1), min(local_i + 1, size)):
+        sum += shared[i]
+    output[global_i] = sum
+
+    # Or unrolling the loop manually
+    # if global_i == 0:
+    #     output[0] = shared[0]
+    # elif global_i == 1:
+    #     output[1] = shared[0] + shared[1]
+    # elif 1 < global_i < size:
+    #     output[global_i] = (
+    #         shared[local_i - 2] + shared[local_i - 1] + shared[local_i]
+    #     )
+
 
 
 # ANCHOR_END: pooling

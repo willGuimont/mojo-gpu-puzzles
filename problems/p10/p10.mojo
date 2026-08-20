@@ -42,8 +42,17 @@ def shared_memory_race(
         dtype=dtype, address_space=AddressSpace.SHARED
     ](row_major[1]())
 
-    if row < size and col < size:
-        shared_sum[0] += a[row, col]
+    # if row < size and col < size:
+        # Race condition here, as += is not atomic
+        # shared_sum[0] += a[row, col]
+    
+    # Serialize the program, which does not use the full parallelism of the GPU...
+    if row == 0 and col == 0:
+        var s = Scalar[dtype](0.0)
+        for r in range(size):
+            for c in range(size):
+                s += a[r, c]
+        shared_sum[0] = s
 
     barrier()
 
@@ -64,7 +73,8 @@ def add_10_2d(
     _ = size
     var row = thread_idx.y
     var col = thread_idx.x
-    output[row, col] = a[row, col] + 10.0
+    if col < size and row < size:
+        output[row, col] = a[row, col] + 10.0
 
 
 # ANCHOR_END: add_10_2d_no_guard
