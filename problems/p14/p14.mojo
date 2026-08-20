@@ -38,7 +38,37 @@ def prefix_sum_simple(
     var size = Int(size_dev)
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
-    # FILL ME IN (roughly 18 lines)
+
+    var shared = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB]())
+
+    if local_i < size:
+        shared[local_i] = a[global_i]
+
+    barrier()
+
+    # 1| 2, 3, 4, 5
+    # Add i - 1, except for i < 1
+    # 1, 3| 5, 7, 9
+    # Add i - 2, except for i < 2
+    # 1, 3, 6, 10| 14
+    # Add i - 4, except for i < 4
+    # 1, 3, 6, 10, 15|
+
+    var delta = 1
+    while delta < size:
+        var sum = shared[local_i]
+        if local_i >= delta and local_i < size:
+            sum += shared[local_i - delta]
+
+        barrier()
+        shared[local_i] = sum
+        barrier()
+        delta *= 2
+
+    if global_i < size:
+        output[global_i] = shared[local_i]
 
 
 # ANCHOR_END: prefix_sum_simple
@@ -64,7 +94,29 @@ def prefix_sum_local_phase(
     var size = Int(size_dev)
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
-    # FILL ME IN (roughly 20 lines)
+
+    var shared = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB]())
+
+    if local_i < size:
+        shared[local_i] = a[global_i]
+
+    barrier()
+
+    var delta = 1
+    while delta < size:
+        var sum = shared[local_i]
+        if local_i >= delta and local_i < size:
+            sum += shared[local_i - delta]
+
+        barrier()
+        shared[local_i] = sum
+        barrier()
+        delta *= 2
+
+    if global_i < size:
+        output[global_i] = shared[local_i]
 
 
 # Kernel 2: Add block sums to their respective blocks
@@ -74,7 +126,11 @@ def prefix_sum_block_sum_phase(
 ):
     var size = Int(size_dev)
     var global_i = block_dim.x * block_idx.x + thread_idx.x
-    # FILL ME IN (roughly 3 lines)
+    
+    # if block_idx.x > 0 and global_i < size:
+    #     # Assumes only two blocks
+    #     var prev_sum = output[size + block_idx.x - 1]
+    #     output[global_i] += prev_sum
 
 
 # ANCHOR_END: prefix_sum_complete
