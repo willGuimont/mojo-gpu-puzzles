@@ -47,6 +47,8 @@ def dot_product(
 
     if global_i < size:
         shared[local_i] = a[global_i] * b[global_i]
+    else:
+        shared[local_i] = 0.0
     barrier()
 
     # Or

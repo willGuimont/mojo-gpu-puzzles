@@ -37,10 +37,31 @@ def axis_sum(
     size_dev: Int32,
 ):
     var size = Int(size_dev)
+
+    var shared = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB]())
+
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
     var batch = block_idx.y
-    # FILL ME IN (roughly 15 lines)
+
+    if global_i < size:
+        shared[local_i] = a[batch, global_i]
+    else:
+        shared[local_i] = 0.0
+    barrier()
+
+    # Same summing as in p12
+    var offset = 1
+    while offset < size:
+        if local_i + offset < size:
+            shared[local_i] += shared[local_i + offset]
+        barrier()
+        offset *= 2
+    
+    if local_i == 0:
+        output[batch, 0] = shared[0]
 
 
 # ANCHOR_END: axis_sum
