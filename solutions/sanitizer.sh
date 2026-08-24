@@ -15,6 +15,9 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/config.sh"
 
+# Export MODULAR_DEVICE_CONTEXT_MEMORY_MANAGER_SIZE_PERCENT=0 so compute-sanitizer memcheck works correctly
+export MODULAR_DEVICE_CONTEXT_MEMORY_MANAGER_SIZE_PERCENT="${MODULAR_DEVICE_CONTEXT_MEMORY_MANAGER_SIZE_PERCENT:-0}"
+
 # Detect GPU platform and compute capability at startup
 GPU_PLATFORM=$(detect_gpu_platform)
 GPU_COMPUTE_CAP=$(detect_gpu_compute_capability)
@@ -242,9 +245,38 @@ run_mojo_files_with_sanitizer() {
       fi
     fi
   done
+
+  if [ -d "test" ]; then
+    for f in test/*.mojo; do
+      if [ -f "$f" ]; then
+        echo "=== Running compute-sanitizer --tool $tool on ${path_prefix}$f ==="
+        output=$(compute-sanitizer --tool "$tool" mojo run -I . "$f" 2>&1)
+        filtered_output=$(echo "$output" | grep -E "$grep_pattern")
+
+        error_count=$(extract_error_count "$output")
+
+        if [ -n "$error_count" ] && [ "$error_count" -gt 0 ]; then
+          echo -e "${RED}FOUND $error_count ERRORS!${NC}"
+          TOTAL_ERRORS=$((TOTAL_ERRORS + error_count))
+        fi
+
+        if [ -n "$filtered_output" ]; then
+          echo "$filtered_output"
+        else
+          echo "Failed: compute-sanitizer $tool ${path_prefix}$f"
+        fi
+      fi
+    done
+  fi
 }
 
-cd solutions || exit 1
+if [ -n "${TARGET_DIR:-}" ]; then
+    cd "$TARGET_DIR" || exit 1
+elif [ -n "$SPECIFIC_PUZZLE" ] && [ ! -d "solutions/$SPECIFIC_PUZZLE" ] && [ -d "problems/$SPECIFIC_PUZZLE" ]; then
+    cd problems || exit 1
+else
+    cd solutions || exit 1
+fi
 
 SKIPPED_PUZZLES=0
 

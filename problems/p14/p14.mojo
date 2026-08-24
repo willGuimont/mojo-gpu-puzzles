@@ -43,7 +43,7 @@ def prefix_sum_simple(
         dtype=dtype, address_space=AddressSpace.SHARED
     ](row_major[TPB]())
 
-    if local_i < size:
+    if global_i < size:
         shared[local_i] = a[global_i]
 
     barrier()
@@ -57,9 +57,9 @@ def prefix_sum_simple(
     # 1, 3, 6, 10, 15|
 
     var delta = 1
-    while delta < size:
+    while delta < TPB:
         var sum = shared[local_i]
-        if local_i >= delta and local_i < size:
+        if local_i >= delta:
             sum += shared[local_i - delta]
 
         barrier()
@@ -91,6 +91,8 @@ def prefix_sum_local_phase(
     a: TileTensor[mut=False, dtype, Layout2Type, ImmutAnyOrigin],
     size_dev: Int32,
 ):
+    # output already has EXTENDED_SIZE (enough for the data + one cell per block)
+
     var size = Int(size_dev)
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
@@ -99,15 +101,15 @@ def prefix_sum_local_phase(
         dtype=dtype, address_space=AddressSpace.SHARED
     ](row_major[TPB]())
 
-    if local_i < size:
+    if global_i < size:
         shared[local_i] = a[global_i]
 
     barrier()
 
     var delta = 1
-    while delta < size:
+    while delta < TPB:
         var sum = shared[local_i]
-        if local_i >= delta and local_i < size:
+        if local_i >= delta:
             sum += shared[local_i - delta]
 
         barrier()
@@ -118,6 +120,10 @@ def prefix_sum_local_phase(
     if global_i < size:
         output[global_i] = shared[local_i]
 
+    # Store block sum to the end of output
+    if local_i == TPB - 1:
+        output[size + block_idx.x] = shared[local_i]
+
 
 # Kernel 2: Add block sums to their respective blocks
 def prefix_sum_block_sum_phase(
@@ -126,11 +132,22 @@ def prefix_sum_block_sum_phase(
 ):
     var size = Int(size_dev)
     var global_i = block_dim.x * block_idx.x + thread_idx.x
-    
+
+    # Assumes only 2 blocks (otherwise there might be a race condition, and using kernel from the simple case)
     # if block_idx.x > 0 and global_i < size:
-    #     # Assumes only two blocks
-    #     var prev_sum = output[size + block_idx.x - 1]
-    #     output[global_i] += prev_sum
+    #     var ii = block_dim.x * (block_idx.x - 1) + TPB - 1
+    #     output[global_i] += output[ii]
+
+    # To avoid the race condition, we need to precompute partial sums outside the blocks
+    # [block 1 | block 2 | ... | block n | sum 1, sum 2, ..., sum n]
+    if block_idx.x > 0 and global_i < size:
+        var sum = Scalar[dtype](0.0)
+        # Sum over all past blocks
+        # A better approach would be to precompute the sum in log(n) steps like done previously
+        for bi in range(block_idx.x):
+            var ii = size + bi
+            sum += output[ii]
+        output[global_i] += sum
 
 
 # ANCHOR_END: prefix_sum_complete

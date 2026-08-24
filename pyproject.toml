@@ -53,85 +53,120 @@ pytorch-triton-rocm = [
 tests = "bash solutions/run.sh"
 
 p01 = "mojo problems/p01/p01.mojo"
+p01-sanitizer = "bash solutions/sanitizer.sh all p01"
 
 p02 = "mojo problems/p02/p02.mojo"
+p02-sanitizer = "bash solutions/sanitizer.sh all p02"
 
 p03 = "mojo problems/p03/p03.mojo"
+p03-sanitizer = "bash solutions/sanitizer.sh all p03"
 
 p04 = "mojo problems/p04/p04.mojo"
+p04-sanitizer = "bash solutions/sanitizer.sh all p04"
 p04_tile_tensor = "mojo problems/p04/p04_tile_tensor.mojo"
 tile_tensor_intro = "mojo book/src/puzzle_04/intro.mojo"
 
 p05 = "mojo problems/p05/p05.mojo"
+p05-sanitizer = "bash solutions/sanitizer.sh all p05"
 
 p06 = "mojo problems/p06/p06.mojo"
+p06-sanitizer = "bash solutions/sanitizer.sh all p06"
 
 p07 = "mojo problems/p07/p07.mojo"
+p07-sanitizer = "bash solutions/sanitizer.sh all p07"
 
 p08 = "mojo problems/p08/p08.mojo"
+p08-sanitizer = "bash solutions/sanitizer.sh all p08"
 
 p09 = "mojo problems/p09/p09.mojo"
+p09-sanitizer = "bash solutions/sanitizer.sh all p09"
 
 p10 = "mojo problems/p10/p10.mojo"
+p10-sanitizer = "bash solutions/sanitizer.sh all p10"
 
 p11 = "mojo problems/p11/p11.mojo"
+p11-sanitizer = "bash solutions/sanitizer.sh all p11"
 
 p12 = "mojo problems/p12/p12.mojo"
+p12-sanitizer = "bash solutions/sanitizer.sh all p12"
 
 p13 = "mojo problems/p13/p13.mojo"
+p13-sanitizer = "bash solutions/sanitizer.sh all p13"
 
 p14 = "mojo problems/p14/p14.mojo"
+p14-sanitizer = "bash solutions/sanitizer.sh all p14"
 
 p15 = "mojo problems/p15/p15.mojo"
+p15-sanitizer = "bash solutions/sanitizer.sh all p15"
 
 p16 = "bash solutions/gate.sh p16 mojo problems/p16/p16.mojo"
+p16-sanitizer = "bash solutions/sanitizer.sh all p16"
 
 p17 = [
     { cmd = "mojo package problems/p17/op -o problems/p17/op.mojoc" },
     { cmd = "python problems/p17/p17.py" }
 ]
+p17-sanitizer = "bash solutions/sanitizer.sh all p17"
 
 p18-package = "mojo package problems/p18/op -o problems/p18/op.mojoc"
 p18-test-kernels = { cmd = "mojo run -I problems/p18 problems/p18/test/test_softmax.mojo", deps = ["p18-package"] }
 p18 = { cmd = "python problems/p18/p18.py", deps = ["p18-package"] }
+p18-sanitizer = "bash solutions/sanitizer.sh all p18"
 
 p19 = [
     { cmd = "bash solutions/gate.sh p19 true" },
     { cmd = "mojo package problems/p19/op -o problems/p19/op.mojoc" },
     { cmd = "python problems/p19/p19.py" }
 ]
+p19-sanitizer = "bash solutions/sanitizer.sh all p19"
 
 p20 = "python problems/p20/p20.py"
+p20-sanitizer = "bash solutions/sanitizer.sh all p20"
 
 p21 = "python problems/p21/p21.py"
+p21-sanitizer = "bash solutions/sanitizer.sh all p21"
 
 p22 = "bash solutions/gate.sh p22 python problems/p22/p22.py"
+p22-sanitizer = "bash solutions/sanitizer.sh all p22"
 
 p23 = "mojo problems/p23/p23.mojo"
+p23-sanitizer = "bash solutions/sanitizer.sh all p23"
 
 p24 = "mojo problems/p24/p24.mojo"
+p24-sanitizer = "bash solutions/sanitizer.sh all p24"
 
 p25 = "mojo problems/p25/p25.mojo"
+p25-sanitizer = "bash solutions/sanitizer.sh all p25"
 
 p26 = "mojo problems/p26/p26.mojo"
+p26-sanitizer = "bash solutions/sanitizer.sh all p26"
 
 p27 = "mojo problems/p27/p27.mojo"
+p27-sanitizer = "bash solutions/sanitizer.sh all p27"
 
 p28 = "bash solutions/gate.sh p28 mojo problems/p28/p28.mojo"
+p28-sanitizer = "bash solutions/sanitizer.sh all p28"
 
 p29 = "bash solutions/gate.sh p29 mojo problems/p29/p29.mojo"
+p29-sanitizer = "bash solutions/sanitizer.sh all p29"
 
 p30 = "mojo problems/p30/p30.mojo"
+p30-sanitizer = "bash solutions/sanitizer.sh all p30"
 
 p31 = "mojo problems/p31/p31.mojo"
+p31-sanitizer = "bash solutions/sanitizer.sh all p31"
 
 p32 = "mojo problems/p32/p32.mojo"
+p32-sanitizer = "bash solutions/sanitizer.sh all p32"
 
 p33 = "bash solutions/gate.sh p33 mojo problems/p33/p33.mojo"
+p33-sanitizer = "bash solutions/sanitizer.sh all p33"
 
 p34 = "bash solutions/gate.sh p34 mojo problems/p34/p34.mojo"
+p34-sanitizer = "bash solutions/sanitizer.sh all p34"
 
 p35 = "mojo problems/p35/p35.mojo"
+p35-sanitizer = "bash solutions/sanitizer.sh all p35"
 
 # GPU information
 gpu-info = { cmd = "python3 scripts/gpu_specs.py --summary" }
