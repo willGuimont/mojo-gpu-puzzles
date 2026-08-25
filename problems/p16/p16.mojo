@@ -38,7 +38,12 @@ def naive_matmul[
 ):
     var row = block_dim.y * block_idx.y + thread_idx.y
     var col = block_dim.x * block_idx.x + thread_idx.x
-    # FILL ME IN (roughly 6 lines)
+
+    if row < size and col < size:
+        var sum: output.ElementType = 0
+        comptime for i in range(size):
+            sum += a[row, i] * b[i, col]
+        output[row, col] = sum
 
 
 # ANCHOR_END: naive_matmul
@@ -56,17 +61,38 @@ def single_block_matmul[
     var col = block_dim.x * block_idx.x + thread_idx.x
     var local_row = thread_idx.y
     var local_col = thread_idx.x
-    # FILL ME IN (roughly 12 lines)
+
+    var shared_a = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB, TPB]())
+    var shared_b = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB, TPB]())
+
+    if row < size and col < size:
+        shared_a[local_row, local_col] = a[row, col]
+        shared_b[local_row, local_col] = b[row, col]
+    barrier()
+
+    if row < size and col < size:
+        var sum: output.ElementType = 0
+        comptime for i in range(size):
+            sum += shared_a[row, i] * shared_b[i, col]
+        output[row, col] = sum
 
 
 # ANCHOR_END: single_block_matmul
-
+from max.gpu.memory import async_copy_wait_all
+from layout.layout_tensor import copy_dram_to_sram_async
+from layout import Layout as IntTupleLayout
 
 comptime SIZE_TILED = 9
 comptime BLOCKS_PER_GRID_TILED = (3, 3)  # each block covers 3x3 elements
 comptime THREADS_PER_BLOCK_TILED = (TPB, TPB)
 comptime layout_tiled = row_major[SIZE_TILED, SIZE_TILED]()
 comptime LayoutTiledType = type_of(layout_tiled)
+comptime NUM_THREADS = TPB * TPB
+comptime BLOCK_DIM_COUNT = 2
 
 
 # ANCHOR: matmul_tiled
@@ -79,9 +105,72 @@ def matmul_tiled[
 ):
     var local_row = thread_idx.y
     var local_col = thread_idx.x
-    var tiled_row = block_idx.y * TPB + local_row
-    var tiled_col = block_idx.x * TPB + local_col
-    # FILL ME IN (roughly 20 lines)
+    var global_row = block_idx.y * TPB + local_row
+    var global_col = block_idx.x * TPB + local_col
+
+    var shared_a = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB, TPB]())
+    var shared_b = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[TPB, TPB]())
+
+    # My implementation
+    var sum: output.ElementType = 0
+    # Loop over all tiles
+    comptime for i in range(size // TPB):
+        var global_row_i = i * TPB + local_row
+        var global_col_i = i * TPB + local_col
+        if global_row < size and global_col_i < size:
+            shared_a[local_row, local_col] = a[global_row, global_col_i]
+        if global_row_i < size and global_col < size:
+            shared_b[local_row, local_col] = b[global_row_i, global_col]
+        barrier()
+
+        if global_row < size and global_col < size:
+            comptime for k in range(size):
+                sum += shared_a[local_row, k] * shared_b[k, local_col]
+        barrier()
+
+    if global_row < size and global_col < size:
+        output[global_row, global_col] = sum
+
+    # Idiomatic implementation
+    # var out_tile = output.tile[TPB, TPB](
+    #     block_idx.y, block_idx.x
+    # )  # Allows to get tiles without manual idx
+
+    # # Layout defines how threads load from global memory
+    # comptime load_a_layout = IntTupleLayout.row_major(1, TPB)
+    # comptime load_b_layout = IntTupleLayout.row_major(1, TPB)
+
+    # var sum: output.ElementType = 0
+    # comptime for idx in range(size // TPB):
+    #     # Get tiles from global a and b
+    #     var a_tile = a.tile[TPB, TPB](block_idx.y, Int(idx))
+    #     var b_tile = b.tile[TPB, TPB](Int(idx), block_idx.x)
+
+    #     # Async copy to shared
+    #     copy_dram_to_sram_async[
+    #         thread_layout=load_a_layout,
+    #         num_threads=NUM_THREADS,
+    #         block_dim_count=BLOCK_DIM_COUNT,
+    #     ](shared_a.to_layout_tensor(), a_tile.to_layout_tensor())
+    #     copy_dram_to_sram_async[
+    #         thread_layout=load_b_layout,
+    #         num_threads=NUM_THREADS,
+    #         block_dim_count=BLOCK_DIM_COUNT,
+    #     ](shared_b.to_layout_tensor(), b_tile.to_layout_tensor())
+    #     async_copy_wait_all()
+    #     barrier()
+
+    #     comptime for k in range(TPB):
+    #         sum += shared_a[local_row, k] * shared_b[k, local_col]
+
+    #     barrier()
+
+    # if global_row < size and global_col < size:
+    #     output[global_row, global_col] = sum
 
 
 # ANCHOR_END: matmul_tiled
