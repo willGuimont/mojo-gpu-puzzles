@@ -40,7 +40,53 @@ def softmax_gpu_kernel[
     comptime assert (
         dtype.is_floating_point()
     ), "dtype must be a floating-point type"
-    # FILL IN (roughly 31 lines)
+
+    var shared_max = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[input_size]())
+    var shared_sum = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[input_size]())
+
+    var global_i = block_dim.x * block_idx.x + thread_idx.x
+    var local_i = thread_idx.x
+
+    # Load in values into shared_max, keeping the value in a variable for later
+    var value: Scalar[dtype] = min_finite[dtype]()
+    if global_i < input_size:
+        value = input[global_i]
+    shared_max[local_i] = value
+    barrier()
+
+    # Find max in log(n)
+    var moffset = 1
+    while moffset < input_size:
+        if local_i + moffset < input_size:
+            shared_max[local_i] = max(
+                shared_max[local_i], shared_max[local_i + moffset]
+            )
+        barrier()
+        moffset *= 2
+    var m = shared_max[0]
+
+    # Compute exp(value - max)
+    var e: Scalar[dtype] = 0.0
+    if global_i < input_size:
+        e = exp(value - m)
+    shared_sum[local_i] = e
+    barrier()
+
+    # Sum in log(n)
+    var soffset = 1
+    while soffset < input_size:
+        if local_i + soffset < input_size:
+            shared_sum[local_i] += shared_sum[local_i + soffset]
+        barrier()
+        soffset *= 2
+    var sum = shared_sum[0]
+
+    if global_i < input_size:
+        output[global_i] = e / sum
 
 
 # ANCHOR_END: softmax_gpu_kernel
@@ -57,7 +103,18 @@ def softmax_cpu_kernel[
     comptime assert (
         dtype.is_floating_point()
     ), "dtype must be a floating-point type"
-    # FILL IN (roughly 10 lines)
+    var m: Scalar[dtype] = min_finite[dtype]()
+    for i in range(input_size):
+        m = max(input[i], m)
+
+    var sum: Scalar[dtype] = 0
+    for i in range(input_size):
+        var e = exp(input[i] - m)
+        output[i] = e
+        sum += e
+
+    for i in range(input_size):
+        output[i] /= sum
 
 
 # ANCHOR_END: softmax_cpu_kernel
