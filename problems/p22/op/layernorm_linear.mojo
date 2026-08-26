@@ -39,7 +39,7 @@ def matmul_idiomatic_tiled[
     OutLayout: TensorLayout,
     ALayout: TensorLayout,
     BLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     a: TileTensor[mut=True, dtype, ALayout, MutAnyOrigin],
@@ -58,12 +58,12 @@ def matmul_idiomatic_tiled[
     comptime shared_layout = row_major[
         MATMUL_BLOCK_DIM_XY, MATMUL_BLOCK_DIM_XY
     ]()
-    var a_shared = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](shared_layout)
-    var b_shared = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](shared_layout)
+    var a_shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        shared_layout
+    )
+    var b_shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        shared_layout
+    )
     var acc: output.ElementType = 0
 
     var a_lt = a.to_layout_tensor()
@@ -125,7 +125,7 @@ def layernorm_kernel[
     OutputLayout: TensorLayout,
     InputLayout: TensorLayout,
     LnParamsLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutputLayout, MutAnyOrigin],
     input: TileTensor[mut=True, dtype, InputLayout, MutAnyOrigin],
@@ -164,7 +164,7 @@ def transpose_kernel[
     cols: Int,
     OutLayout: TensorLayout,
     InLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     inp: TileTensor[mut=True, dtype, InLayout, MutAnyOrigin],
@@ -175,9 +175,9 @@ def transpose_kernel[
     comptime shared_layout = row_major[
         TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY
     ]()
-    var shared_tile = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](shared_layout)
+    var shared_tile = stack_allocation[dtype=dtype, address_space=.SHARED](
+        shared_layout
+    )
 
     var local_row = thread_idx.y
     var local_col = thread_idx.x
@@ -214,7 +214,7 @@ def add_bias_kernel[
     OutputLayout: TensorLayout,
     InputLayout: TensorLayout,
     BiasLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutputLayout, MutAnyOrigin],
     input: TileTensor[mut=True, dtype, InputLayout, MutAnyOrigin],
@@ -251,7 +251,7 @@ def minimal_fused_kernel[
     LnParamsLayout: TensorLayout,
     WeightLayout: TensorLayout,
     BiasLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutputLayout, MutAnyOrigin],
     input: TileTensor[mut=True, dtype, InputLayout, MutAnyOrigin],
@@ -303,7 +303,7 @@ def minimal_fused_kernel_backward[
     InputLayout: TensorLayout,
     LnParamsLayout: TensorLayout,
     WeightLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     grad_input: TileTensor[mut=True, dtype, GradInputLayout, MutAnyOrigin],
     grad_ln_weight: TileTensor[
@@ -396,7 +396,7 @@ struct LayerNormLinearCustomOp:
         seq_len: Int,
         hidden_dim: Int,
         output_dim: Int,
-        dtype: DType = DType.float32,
+        dtype: DType = .float32,
     ](
         output: OutputTensor[dtype=dtype, rank=3, static_spec=_],
         input: InputTensor[dtype=dtype, rank=3, static_spec=_],
@@ -522,10 +522,7 @@ struct LayerNormLinearCustomOp:
                     transposed_weight_layout
                 )
                 var transposed_weight_tensor = TileTensor[
-                    mut=True,
-                    dtype,
-                    TransposedWeightLayout,
-                    MutAnyOrigin,
+                    mut=True, dtype, TransposedWeightLayout, MutAnyOrigin
                 ](transposed_weight_buffer, transposed_weight_layout)
 
                 # Transpose the weight matrix
@@ -651,7 +648,7 @@ struct LayerNormLinearBackwardCustomOp:
         seq_len: Int,
         hidden_dim: Int,
         output_dim: Int,
-        dtype: DType = DType.float32,
+        dtype: DType = .float32,
     ](
         grad_input: OutputTensor[dtype=dtype, rank=3, static_spec=_],
         grad_ln_weight: OutputTensor[dtype=dtype, rank=1, static_spec=_],

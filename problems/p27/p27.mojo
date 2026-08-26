@@ -68,9 +68,9 @@ def traditional_dot_product[
     Educational but complex - shows the manual coordination needed."""
 
     var size = Int(size_dev)
-    var shared = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](row_major[tpb]())
+    var shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        row_major[tpb]()
+    )
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
 
@@ -107,7 +107,7 @@ def block_histogram_bin_extract[
 ](
     input_data: TileTensor[mut=False, dtype, InLayout, ImmutAnyOrigin],
     bin_output: TileTensor[mut=True, dtype, BinLayout, MutAnyOrigin],
-    count_output: TileTensor[mut=True, DType.int32, OutLayout, MutAnyOrigin],
+    count_output: TileTensor[mut=True, .int32, OutLayout, MutAnyOrigin],
     size_dev: Int32,
     target_bin_dev: Int32,
     num_bins_dev: Int32,
@@ -348,7 +348,7 @@ def main() raises:
                 # Create output buffers for this bin
                 var bin_data = ctx.enqueue_create_buffer[dtype](SIZE)
                 bin_data.enqueue_fill(0)
-                var bin_count = ctx.enqueue_create_buffer[DType.int32](1)
+                var bin_count = ctx.enqueue_create_buffer[.int32](1)
                 bin_count.enqueue_fill(0)
 
                 var bin_tensor = TileTensor(bin_data, bin_layout)

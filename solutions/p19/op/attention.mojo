@@ -48,7 +48,7 @@ def matmul_idiomatic_tiled[
     OutLayout: TensorLayout,
     ALayout: TensorLayout,
     BLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     a: TileTensor[mut=True, dtype, ALayout, MutAnyOrigin],
@@ -67,12 +67,12 @@ def matmul_idiomatic_tiled[
     comptime shared_layout = row_major[
         MATMUL_BLOCK_DIM_XY, MATMUL_BLOCK_DIM_XY
     ]()
-    var a_shared = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](shared_layout)
-    var b_shared = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](shared_layout)
+    var a_shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        shared_layout
+    )
+    var b_shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        shared_layout
+    )
     var acc: output.ElementType = 0
 
     var a_lt = a.to_layout_tensor()
@@ -130,7 +130,7 @@ def transpose_kernel[
     cols: Int,
     OutLayout: TensorLayout,
     InLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     inp: TileTensor[mut=True, dtype, InLayout, MutAnyOrigin],
@@ -139,9 +139,9 @@ def transpose_kernel[
     comptime shared_layout = row_major[
         TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY
     ]()
-    var shared_tile = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](shared_layout)
+    var shared_tile = stack_allocation[dtype=dtype, address_space=.SHARED](
+        shared_layout
+    )
 
     var local_row = thread_idx.y
     var local_col = thread_idx.x
@@ -174,7 +174,7 @@ def transpose_kernel[
 def softmax_gpu_kernel[
     input_size: Int,
     LayoutType: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, LayoutType, MutAnyOrigin],
     input: TileTensor[mut=True, dtype, LayoutType, MutAnyOrigin],
@@ -183,12 +183,12 @@ def softmax_gpu_kernel[
         dtype.is_floating_point()
     ), "dtype must be a floating-point type"
     comptime softmax_layout = row_major[SOFTMAX_BLOCK_DIM_X]()
-    var shared_max = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](softmax_layout)
-    var shared_sum = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](softmax_layout)
+    var shared_max = stack_allocation[dtype=dtype, address_space=.SHARED](
+        softmax_layout
+    )
+    var shared_sum = stack_allocation[dtype=dtype, address_space=.SHARED](
+        softmax_layout
+    )
     var global_i = thread_idx.x
     var input_lt = input.to_layout_tensor()
     var output_lt = output.to_layout_tensor()
@@ -247,7 +247,7 @@ def attention_cpu_kernel[
     QLayout: TensorLayout,
     KLayout: TensorLayout,
     VLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     q: TileTensor[mut=True, dtype, QLayout, MutAnyOrigin],
@@ -303,7 +303,7 @@ struct AttentionCustomOp:
         target: StaticString,  # "cpu" or "gpu"
         seq_len: Int,
         d: Int,
-        dtype: DType = DType.float32,
+        dtype: DType = .float32,
     ](
         output: OutputTensor[
             dtype=dtype, rank=1, static_spec=_

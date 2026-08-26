@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # ===----------------------------------------------------------------------=== #
 # Copyright (c) 2026, Modular Inc. All rights reserved.
 #
@@ -70,9 +69,7 @@ def _extract_flags(path: Path) -> list[str]:
 
 def main() -> None:
     source_files = sorted(
-        Path(f)
-        for f in sys.argv[1:]
-        if f.endswith(".mojo") or f.endswith(".py")
+        Path(f) for f in sys.argv[1:] if f.endswith((".mojo", ".py"))
     )
 
     mapping: dict[str, list[str]] = {}

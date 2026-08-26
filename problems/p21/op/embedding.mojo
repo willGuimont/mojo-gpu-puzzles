@@ -31,10 +31,10 @@ def embedding_kernel_coalesced[
     OutLayout: TensorLayout,
     IndicesLayout: TensorLayout,
     WeightsLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
-    indices: TileTensor[mut=True, DType.int32, IndicesLayout, MutAnyOrigin],
+    indices: TileTensor[mut=True, .int32, IndicesLayout, MutAnyOrigin],
     weights: TileTensor[mut=True, dtype, WeightsLayout, MutAnyOrigin],
 ):
     """
@@ -79,10 +79,10 @@ def embedding_kernel_2d[
     OutLayout: TensorLayout,
     IndicesLayout: TensorLayout,
     WeightsLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
-    indices: TileTensor[mut=True, DType.int32, IndicesLayout, MutAnyOrigin],
+    indices: TileTensor[mut=True, .int32, IndicesLayout, MutAnyOrigin],
     weights: TileTensor[mut=True, dtype, WeightsLayout, MutAnyOrigin],
 ):
     """
@@ -158,7 +158,7 @@ struct EmbeddingCustomOp:
             mut=True, output.dtype, OutLayout, MutAnyOrigin
         ](output.unsafe_ptr(), out_layout_val)
         var indices_tensor = TileTensor[
-            mut=True, DType.int32, IndicesLayout, MutAnyOrigin
+            mut=True, .int32, IndicesLayout, MutAnyOrigin
         ](indices.unsafe_ptr(), indices_layout_val)
         var weights_tensor = TileTensor[
             mut=True, output.dtype, WeightsLayout, MutAnyOrigin
@@ -249,7 +249,7 @@ struct Embedding2DCustomOp:
             mut=True, output.dtype, OutLayout, MutAnyOrigin
         ](output.unsafe_ptr(), out_layout_val)
         var indices_tensor = TileTensor[
-            mut=True, DType.int32, IndicesLayout, MutAnyOrigin
+            mut=True, .int32, IndicesLayout, MutAnyOrigin
         ](indices.unsafe_ptr(), indices_layout_val)
         var weights_tensor = TileTensor[
             mut=True, output.dtype, WeightsLayout, MutAnyOrigin

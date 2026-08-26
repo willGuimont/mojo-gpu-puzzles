@@ -60,9 +60,7 @@ def sophisticated_kernel(
     """
     var size = Int(size_dev)
     # Maximum shared memory allocation (close to 48KB limit)
-    var shared_cache = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](
+    var shared_cache = stack_allocation[dtype=dtype, address_space=.SHARED](
         row_major[1024 * 12]()
     )  # 48KB
 
@@ -155,9 +153,7 @@ def balanced_kernel(
     """
     var size = Int(size_dev)
     # Reasonable shared memory usage for effective caching (16KB)
-    var shared_cache = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](
+    var shared_cache = stack_allocation[dtype=dtype, address_space=.SHARED](
         row_major[1024 * 4]()
     )  # 16KB total
 
@@ -200,7 +196,6 @@ def balanced_kernel(
 # ANCHOR_END: balanced_kernel
 
 
-@__parameter
 @always_inline
 def benchmark_minimal_parameterized[test_size: Int](mut b: Bencher) raises:
     # Allocation, fill and the host fill loop stay OUTSIDE the timed closure so
@@ -246,7 +241,6 @@ def benchmark_minimal_parameterized[test_size: Int](mut b: Bencher) raises:
     bencher_iter_custom(b, minimal_workflow, bench_ctx)
 
 
-@__parameter
 @always_inline
 def benchmark_sophisticated_parameterized[
     test_size: Int
@@ -294,7 +288,6 @@ def benchmark_sophisticated_parameterized[
     bencher_iter_custom(b, sophisticated_workflow, bench_ctx)
 
 
-@__parameter
 @always_inline
 def benchmark_balanced_parameterized[test_size: Int](mut b: Bencher) raises:
     # Allocation, fill and the host fill loop stay OUTSIDE the timed closure so
@@ -532,18 +525,27 @@ def main() raises:
     elif run_benchmark:
         var bench = Bench()
         print("Benchmarking Minimal Kernel (High Occupancy)")
-        bench.bench_function[benchmark_minimal_parameterized[SIZE]](
-            BenchId("minimal")
+        bench.bench_function(
+            lambda (mut b: Bencher) raises: benchmark_minimal_parameterized[
+                SIZE
+            ](b),
+            BenchId("minimal"),
         )
 
         print("Benchmarking Sophisticated Kernel (Low Occupancy)")
-        bench.bench_function[benchmark_sophisticated_parameterized[SIZE]](
-            BenchId("sophisticated")
+        bench.bench_function(
+            lambda (
+                mut b: Bencher
+            ) raises: benchmark_sophisticated_parameterized[SIZE](b),
+            BenchId("sophisticated"),
         )
 
         print("Benchmarking Balanced Kernel (Optimal Occupancy)")
-        bench.bench_function[benchmark_balanced_parameterized[SIZE]](
-            BenchId("balanced")
+        bench.bench_function(
+            lambda (mut b: Bencher) raises: benchmark_balanced_parameterized[
+                SIZE
+            ](b),
+            BenchId("balanced"),
         )
 
         bench.dump_report()

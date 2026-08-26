@@ -31,7 +31,7 @@ def conv1d_kernel[
     OutLayout: TensorLayout,
     InLayout: TensorLayout,
     ConvLayout: TensorLayout,
-    dtype: DType = DType.float32,
+    dtype: DType = .float32,
 ](
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     input: TileTensor[mut=True, dtype, InLayout, MutAnyOrigin],
@@ -43,12 +43,12 @@ def conv1d_kernel[
     var kernel_lt = kernel.to_layout_tensor()
     var output_lt = output.to_layout_tensor()
     # first: need to account for padding
-    var shared_a = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](row_major[TPB + conv_size - 1]())
-    var shared_b = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](row_major[conv_size]())
+    var shared_a = stack_allocation[dtype=dtype, address_space=.SHARED](
+        row_major[TPB + conv_size - 1]()
+    )
+    var shared_b = stack_allocation[dtype=dtype, address_space=.SHARED](
+        row_major[conv_size]()
+    )
     if global_i < input_size:
         shared_a[local_i] = rebind[Scalar[dtype]](input_lt[global_i])
 
@@ -92,7 +92,7 @@ struct Conv1DCustomOp:
         target: StaticString,
         input_size: Int,
         conv_size: Int,
-        dtype: DType = DType.float32,
+        dtype: DType = .float32,
     ](
         output: OutputTensor[dtype=dtype, rank=1, static_spec=_],
         input: InputTensor[dtype=dtype, rank=output.rank, static_spec=_],

@@ -58,7 +58,7 @@ def block_sum_dot_product[
     # The magic: block.sum() replaces 15+ lines of manual reduction!
     # Just like warp.sum() but for the entire block
     var total = block.sum[block_size=tpb, broadcast=False](
-        val=SIMD[DType.float32, 1](partial_product)
+        val=Float32(partial_product)
     )
 
     # Only thread 0 writes the result
@@ -82,9 +82,9 @@ def traditional_dot_product[
     Educational but complex - shows the manual coordination needed."""
 
     var size = Int(size_dev)
-    var shared = stack_allocation[
-        dtype=dtype, address_space=AddressSpace.SHARED
-    ](row_major[tpb]())
+    var shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        row_major[tpb]()
+    )
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
 
@@ -121,7 +121,7 @@ def block_histogram_bin_extract[
 ](
     input_data: TileTensor[mut=False, dtype, InLayout, ImmutAnyOrigin],
     bin_output: TileTensor[mut=True, dtype, BinLayout, MutAnyOrigin],
-    count_output: TileTensor[mut=True, DType.int32, OutLayout, MutAnyOrigin],
+    count_output: TileTensor[mut=True, .int32, OutLayout, MutAnyOrigin],
     size_dev: Int32,
     target_bin_dev: Int32,
     num_bins_dev: Int32,
@@ -164,7 +164,7 @@ def block_histogram_bin_extract[
     # This computes where each thread should write within the target bin
     var write_offset = block.prefix_sum[
         dtype=DType.int32, block_size=tpb, exclusive=True
-    ](val=SIMD[DType.int32, 1](belongs_to_target))
+    ](val=Int32(belongs_to_target))
 
     # Step 4: Extract and pack elements belonging to target_bin
     if belongs_to_target == 1:
@@ -211,7 +211,7 @@ def block_normalize_vector[
 
     # Step 2: Use block.sum() to compute total sum (familiar from earlier!)
     var total_sum = block.sum[block_size=tpb, broadcast=False](
-        val=SIMD[DType.float32, 1](my_value)
+        val=Float32(my_value)
     )
 
     # Step 3: Thread 0 computes mean value
@@ -224,7 +224,7 @@ def block_normalize_vector[
     # This completes the block operations trilogy demonstration
     var broadcasted_mean = block.broadcast[
         dtype=DType.float32, width=1, block_size=tpb
-    ](val=SIMD[DType.float32, 1](mean_value), src_thread=0)
+    ](val=Float32(mean_value), src_thread=0)
 
     # Step 5: Each thread normalizes by the mean
     if global_i < size:
@@ -383,7 +383,7 @@ def main() raises:
                 # Create output buffers for this bin
                 var bin_data = ctx.enqueue_create_buffer[dtype](SIZE)
                 bin_data.enqueue_fill(0)
-                var bin_count = ctx.enqueue_create_buffer[DType.int32](1)
+                var bin_count = ctx.enqueue_create_buffer[.int32](1)
                 bin_count.enqueue_fill(0)
 
                 var bin_tensor = TileTensor(bin_data, bin_layout)
