@@ -44,7 +44,7 @@ def conv1d_pytorch(
         }
     ]
 
-    # FILL IN with 1 line of code
+    torch.compile(_conv1d)(output_tensor, input_tensor, kernel_tensor)
 
     return output_tensor
 
