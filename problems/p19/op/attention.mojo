@@ -141,11 +141,11 @@ def transpose_kernel[
 
     # Load from block (j, i)
     var in_tile = inp.tile[TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY](
-        block_idx.x, block_idx.y
+        block_idx.y, block_idx.x
     )
     # Out block (i, j)
     var out_tile = output.tile[TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY](
-        block_idx.y, block_idx.x
+        block_idx.x, block_idx.y
     )
     var shared = stack_allocation[dtype=dtype, address_space=.SHARED](
         row_major[TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY]()
@@ -157,7 +157,7 @@ def transpose_kernel[
     barrier()
 
     if global_row < rows and global_col < cols:
-        out_tile[local_row, local_col] = shared[local_col, local_row]
+        out_tile[local_col, local_row] = shared[local_row, local_col]
 
 
 # ANCHOR_END: transpose_kernel

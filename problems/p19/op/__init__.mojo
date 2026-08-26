@@ -11,3 +11,9 @@
 # limitations under the License.
 # ===----------------------------------------------------------------------=== #
 from .attention import AttentionCustomOp
+from .challenge_attention import (
+    AttentionScaledCustomOp,
+    AttentionDynamicCustomOp,
+    AttentionBatchedCustomOp,
+)
+
