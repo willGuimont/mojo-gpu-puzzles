@@ -10,4 +10,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ===----------------------------------------------------------------------=== #
-from .softmax import softmax_gpu_kernel, softmax_cpu_kernel
+from .softmax import (
+    softmax_gpu_kernel,
+    softmax_cpu_kernel,
+    softmax_block_reduce_kernel,
+    softmax_global_reduce_kernel,
+    softmax_normalize_kernel,
+)

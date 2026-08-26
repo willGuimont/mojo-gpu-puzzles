@@ -119,6 +119,190 @@ def softmax_cpu_kernel[
 
 # ANCHOR_END: softmax_cpu_kernel
 
+
+from std.math import ceildiv
+
+
+# Uses the fact that exp(x_i - m_global) = exp(x_i - m_b) * exp(m_b - m_global)
+def softmax_block_reduce_kernel[
+    input_size: Int,
+    block_dim_x: Int,
+    dtype: DType = .float32,
+](
+    input: TileTensor[
+        mut=True, dtype, type_of(row_major[input_size]()), MutAnyOrigin
+    ],
+    block_max: TileTensor[
+        mut=True,
+        dtype,
+        type_of(row_major[ceildiv(input_size, block_dim_x)]()),
+        MutAnyOrigin,
+    ],
+    block_sum: TileTensor[
+        mut=True,
+        dtype,
+        type_of(row_major[ceildiv(input_size, block_dim_x)]()),
+        MutAnyOrigin,
+    ],
+):
+    comptime assert (
+        dtype.is_floating_point()
+    ), "dtype must be a floating-point type"
+
+    var shared = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[block_dim_x]())
+
+    var global_i = block_dim.x * block_idx.x + thread_idx.x
+    var local_i = thread_idx.x
+
+    # Load in values into shared_max, keeping the value in a variable for later
+    var value: Scalar[dtype] = min_finite[dtype]()
+    if global_i < input_size:
+        value = input[global_i]
+    shared[local_i] = value
+    barrier()
+
+    # Find local max in log(n)
+    var moffset = 1
+    while moffset < block_dim_x:
+        if local_i + moffset < block_dim_x:
+            shared[local_i] = max(
+                shared[local_i], shared[local_i + moffset]
+            )
+        barrier()
+        moffset *= 2
+    var m = shared[0]
+
+    # Compute exp(value - max)
+    var e: Scalar[dtype] = 0.0
+    if global_i < input_size:
+        e = exp(value - m)
+    shared[local_i] = e
+    barrier()
+
+    # Sum in log(n)
+    var soffset = 1
+    while soffset < block_dim_x:
+        if local_i + soffset < block_dim_x:
+            shared[local_i] += shared[local_i + soffset]
+        barrier()
+        soffset *= 2
+    var sum = shared[0]
+
+    if local_i == 0:
+        block_max[block_idx.x] = m
+        block_sum[block_idx.x] = sum
+
+
+# Stores [max, sum]
+def softmax_global_reduce_kernel[
+    num_blocks: Int,
+    dtype: DType = .float32,
+](
+    block_max: TileTensor[
+        mut=True, dtype, type_of(row_major[num_blocks]()), MutAnyOrigin
+    ],
+    block_sum: TileTensor[
+        mut=True, dtype, type_of(row_major[num_blocks]()), MutAnyOrigin
+    ],
+    global_stats: TileTensor[
+        mut=True, dtype, type_of(row_major[2]()), MutAnyOrigin
+    ],
+):
+    comptime assert (
+        dtype.is_floating_point()
+    ), "dtype must be a floating-point type"
+
+    var shared_max = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[num_blocks]())
+    var shared_sum = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[num_blocks]())
+
+    var global_i = block_dim.x * block_idx.x + thread_idx.x
+    var local_i = thread_idx.x
+
+    # Load in values into shared_max, keeping the value in a variable for later
+    var value: Scalar[dtype] = min_finite[dtype]()
+    if global_i < num_blocks:
+        value = block_max[global_i]
+    shared_max[local_i] = value
+    barrier()
+
+    var b_sum : Scalar[dtype]= 0
+    if global_i < num_blocks:
+        b_sum = block_sum[global_i]
+
+    # Find max in log(n)
+    var moffset = 1
+    while moffset < num_blocks:
+        if local_i + moffset < num_blocks:
+            shared_max[local_i] = max(
+                shared_max[local_i], shared_max[local_i + moffset]
+            )
+        barrier()
+        moffset *= 2
+    var m = shared_max[0]
+
+    # Compute block_sum * exp(value - max)
+    # exp(x_i - m_global) = exp(x_i - m_b) * exp(m_b - m_global)
+    var e: Scalar[dtype] = 0.0
+    if global_i < num_blocks:
+        e = b_sum * exp(value - m)
+    shared_sum[local_i] = e
+    barrier()
+
+    # Sum in log(n)
+    var soffset = 1
+    while soffset < num_blocks:
+        if local_i + soffset < num_blocks:
+            shared_sum[local_i] += shared_sum[local_i + soffset]
+        barrier()
+        soffset *= 2
+    var sum = shared_sum[0]
+
+    if local_i == 0:
+        global_stats[0] = m
+        global_stats[1] = sum
+
+
+def softmax_normalize_kernel[
+    input_size: Int,
+    dtype: DType = .float32,
+](
+    output: TileTensor[
+        mut=True, dtype, type_of(row_major[input_size]()), MutAnyOrigin
+    ],
+    input: TileTensor[
+        mut=True, dtype, type_of(row_major[input_size]()), MutAnyOrigin
+    ],
+    global_stats: TileTensor[
+        mut=True, dtype, type_of(row_major[2]()), MutAnyOrigin
+    ],
+):
+    comptime assert (
+        dtype.is_floating_point()
+    ), "dtype must be a floating-point type"
+
+    var shared_stats = stack_allocation[
+        dtype=dtype, address_space=AddressSpace.SHARED
+    ](row_major[2]())
+    
+    var global_i = block_dim.x * block_idx.x + thread_idx.x
+    var local_i = thread_idx.x
+
+    if local_i == 0:
+        shared_stats[0] = global_stats[0]
+    if local_i == 1:
+        shared_stats[1] = global_stats[1]
+    barrier()
+
+    if global_i < input_size:
+        output[global_i] = exp(input[global_i] - shared_stats[0]) / shared_stats[1]
+
+
 import extensibility
 
 from extensibility import InputTensor, OutputTensor
