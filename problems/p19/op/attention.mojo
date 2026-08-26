@@ -134,8 +134,30 @@ def transpose_kernel[
     output: TileTensor[mut=True, dtype, OutLayout, MutAnyOrigin],
     inp: TileTensor[mut=True, dtype, InLayout, MutAnyOrigin],
 ):
-    # FILL ME IN (roughly 18 lines)
-    ...
+    var local_row = thread_idx.y
+    var local_col = thread_idx.x
+    var global_row = block_idx.y * TRANSPOSE_BLOCK_DIM_XY + local_row
+    var global_col = block_idx.x * TRANSPOSE_BLOCK_DIM_XY + local_col
+
+    # Load from block (j, i)
+    var in_tile = inp.tile[TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY](
+        block_idx.x, block_idx.y
+    )
+    # Out block (i, j)
+    var out_tile = output.tile[TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY](
+        block_idx.y, block_idx.x
+    )
+    var shared = stack_allocation[dtype=dtype, address_space=.SHARED](
+        row_major[TRANSPOSE_BLOCK_DIM_XY, TRANSPOSE_BLOCK_DIM_XY]()
+    )
+
+    if global_row < rows and global_col < cols:
+        shared[local_row, local_col] = in_tile[local_row, local_col]
+
+    barrier()
+
+    if global_row < rows and global_col < cols:
+        out_tile[local_row, local_col] = shared[local_col, local_row]
 
 
 # ANCHOR_END: transpose_kernel
@@ -371,28 +393,81 @@ struct AttentionCustomOp:
             var k_t = TileTensor(k_t_buf, layout_k_t)
 
             # Step 1: Reshape Q from (d,) to (1, d) - no buffer needed
-            # FILL ME IN 1 line
+            var q_2d = q_tensor.reshape(layout_q_2d)
 
             # Step 2: Transpose K from (seq_len, d) to K^T (d, seq_len)\
-            # FILL ME IN 1 function call
+            comptime kernel = transpose_kernel[
+                seq_len, d, KTLayout, KLayout, dtype
+            ]
+            ctx.enqueue_function[kernel](
+                k_t,
+                k_tensor,
+                grid_dim=transpose_blocks_per_grid,
+                block_dim=transpose_threads_per_block,
+            )
 
             # Step 3: Compute attention scores using matmul: Q @ K^T = (1, d) @ (d, seq_len) -> (1, seq_len)
             # This computes Q · K^T[i] = Q · K[i] for each column i of K^T (which is row i of K)
             # Reuse scores_weights_buf as (1, seq_len) for scores
-            # FILL ME IN 2 lines
+            var score_2d = TileTensor(scores_weights_buf, layout_scores_2d)
+            comptime kernel2 = matmul_idiomatic_tiled[
+                1,
+                seq_len,
+                d,
+                Scores2DLayout,
+                Q2DLayout,
+                KTLayout,
+                dtype,
+            ]
+            ctx.enqueue_function[kernel2](
+                score_2d,
+                q_2d,
+                k_t,
+                grid_dim=scores_blocks_per_grid,
+                block_dim=matmul_threads_per_block,
+            )
 
             # Step 4: Reshape scores from (1, seq_len) to (seq_len,) for softmax
-            # FILL ME IN 1 line
+            var weights = score_2d.reshape(layout_scores)
 
             # Step 5: Apply softmax to get attention weights (in-place)
-            # FILL ME IN 1 function call
+            comptime ScoresLayout = type_of(layout_scores)
+            comptime kernel3 = softmax_gpu_kernel[seq_len, ScoresLayout, dtype]
+            var weights_out = TileTensor[
+                mut=True, dtype, ScoresLayout, MutAnyOrigin
+            ](scores_weights_buf, layout_scores)
+            var weights_in = TileTensor[
+                mut=True, dtype, ScoresLayout, MutAnyOrigin
+            ](scores_weights_buf, layout_scores)
+            ctx.enqueue_function[kernel3](
+                weights_out,
+                weights_in,
+                grid_dim=softmax_blocks_per_grid,
+                block_dim=softmax_threads,
+            )
 
             # Step 6: Reshape weights from (seq_len,) to (1, seq_len) for final matmul
-            # FILL ME IN 1 line
+            var weights_2d = weights.reshape(layout_weights_2d)
 
             # Step 7: Compute final result using matmul: weights @ V = (1, seq_len) @ (seq_len, d) -> (1, d)
             # Reuse out_tensor reshaped as (1, d) for result
-            # FILL ME IN 2 lines
+            var result_2d = output_tensor.reshape(layout_result_2d)
+            comptime kernel4 = matmul_idiomatic_tiled[
+                1,
+                d,
+                seq_len,
+                Result2DLayout,
+                Weights2DLayout,
+                VLayout,
+                dtype,
+            ]
+            ctx.enqueue_function[kernel4](
+                result_2d,
+                weights_2d,
+                v_tensor,
+                grid_dim=result_blocks_per_grid,
+                block_dim=matmul_threads_per_block,
+            )
 
             # ANCHOR_END: attention_orchestration
 

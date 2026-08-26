@@ -209,6 +209,17 @@ def test_individual_operations():
     print(f"Softmax: {x_softmax}")
     print(f"Sum: {np.sum(x_softmax):.6f}")
 
+    # Test 4: Matrix Transpose
+    print("\nTest 4: Matrix Transpose")
+    M = np.array(
+        [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], dtype=np.float32
+    )
+    expected_transpose = M.T
+    print(f"M shape: {M.shape}")
+    print(f"M^T shape: {expected_transpose.shape}")
+    print(f"M^T:\n{expected_transpose}")
+    assert np.array_equal(M.T, expected_transpose)
+
 
 if __name__ == "__main__":
     SEQ_LEN = 16  # Number of key/value vectors, must be equal to SEQ_LEN in attention.mojo
