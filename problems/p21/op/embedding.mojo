@@ -58,13 +58,24 @@ def embedding_kernel_coalesced[
     var weights_lt = weights.to_layout_tensor()
 
     # Convert to (batch, seq, embed) coordinates
-    # FILL IN roughly 4 lines
+    # We have a 1D array of batch_size [seq, embed]
+    # To get the batch idx, we need to find in which (seq * embed) segment we are in
+    var batch_idx = global_idx // (seq_len * embed_dim)
+    var in_batch_offset = global_idx % (seq_len * embed_dim)
+    # Same for the sequence idx, it is a segment of embed_dim
+    var seq_idx = in_batch_offset // embed_dim
+    var embed_idx = in_batch_offset % embed_dim
 
     # Get token index
-    # FILL IN 1 line
+    var token_idx = Int(indices_lt[batch_idx, seq_idx])
 
     # Simple, correct assignment
-    # FILL IN 4 lines
+    if token_idx >= 0 and token_idx < vocab_size:
+        output_lt[batch_idx, seq_idx, embed_idx] = weights_lt[
+            token_idx, embed_idx
+        ]
+    else:
+        output_lt[batch_idx, seq_idx, embed_idx] = 0.0
 
 
 # ANCHOR_END: embedding_kernel_coalesced
@@ -109,13 +120,19 @@ def embedding_kernel_2d[
     var weights_lt = weights.to_layout_tensor()
 
     # Convert to (batch, seq) coordinates
-    # FILL IN 2 lines
+    var batch_idx = batch_seq_idx // seq_len
+    var seq_idx = batch_seq_idx % seq_len
 
     # Get token index
-    # FILL IN 1 line
+    var token_idx = Int(indices_lt[batch_idx, seq_idx])
 
     # Assignment with 2D grid pattern
-    # FILL IN 4 lines
+    if token_idx >= 0 and token_idx < vocab_size:
+        output_lt[batch_idx, seq_idx, embed_idx] = weights_lt[
+            token_idx, embed_idx
+        ]
+    else:
+        output_lt[batch_idx, seq_idx, embed_idx] = 0.0
 
 
 # ANCHOR_END: embedding_kernel_2d

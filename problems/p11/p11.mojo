@@ -64,7 +64,6 @@ def pooling(
     #     )
 
 
-
 # ANCHOR_END: pooling
 
 

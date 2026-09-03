@@ -16,4 +16,3 @@ from .challenge_attention import (
     AttentionDynamicCustomOp,
     AttentionBatchedCustomOp,
 )
-

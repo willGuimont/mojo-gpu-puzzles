@@ -43,9 +43,9 @@ def shared_memory_race(
     )
 
     # if row < size and col < size:
-        # Race condition here, as += is not atomic
-        # shared_sum[0] += a[row, col]
-    
+    # Race condition here, as += is not atomic
+    # shared_sum[0] += a[row, col]
+
     # Serialize the program, which does not use the full parallelism of the GPU...
     if row == 0 and col == 0:
         var s = Scalar[dtype](0.0)

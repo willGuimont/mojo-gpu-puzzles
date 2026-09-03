@@ -98,7 +98,7 @@ def conv_1d_block_boundary(
         shared_a[local_i] = a[global_i]
     else:
         shared_a[local_i] = 0.0
-    
+
     if local_i < CONV_2 - 1:
         var global_ii = global_i + TPB
         var local_ii = local_i + TPB
@@ -106,10 +106,10 @@ def conv_1d_block_boundary(
             shared_a[local_ii] = a[global_ii]
         else:
             shared_a[local_ii] = 0.0
-    
+
     if local_i < CONV_2:
         shared_b[local_i] = b[local_i]
-    
+
     barrier()
 
     if global_i < SIZE_2:

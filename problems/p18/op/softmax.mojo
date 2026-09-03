@@ -167,9 +167,7 @@ def softmax_block_reduce_kernel[
     var moffset = 1
     while moffset < block_dim_x:
         if local_i + moffset < block_dim_x:
-            shared[local_i] = max(
-                shared[local_i], shared[local_i + moffset]
-            )
+            shared[local_i] = max(shared[local_i], shared[local_i + moffset])
         barrier()
         moffset *= 2
     var m = shared[0]
@@ -231,7 +229,7 @@ def softmax_global_reduce_kernel[
     shared_max[local_i] = value
     barrier()
 
-    var b_sum : Scalar[dtype]= 0
+    var b_sum: Scalar[dtype] = 0
     if global_i < num_blocks:
         b_sum = block_sum[global_i]
 
@@ -289,7 +287,7 @@ def softmax_normalize_kernel[
     var shared_stats = stack_allocation[
         dtype=dtype, address_space=AddressSpace.SHARED
     ](row_major[2]())
-    
+
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
 
@@ -300,7 +298,9 @@ def softmax_normalize_kernel[
     barrier()
 
     if global_i < input_size:
-        output[global_i] = exp(input[global_i] - shared_stats[0]) / shared_stats[1]
+        output[global_i] = (
+            exp(input[global_i] - shared_stats[0]) / shared_stats[1]
+        )
 
 
 import extensibility

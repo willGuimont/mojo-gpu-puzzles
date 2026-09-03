@@ -162,10 +162,28 @@ def test_softmax_block_reduce() raises:
                     if idx < SIZE_MULTI:
                         expected_sum += exp(inp_host[idx] - expected_max)
 
-                print("Block", b, "GPU Max:", b_max_host[b], "Expected Max:", expected_max)
-                print("Block", b, "GPU Sum:", b_sum_host[b], "Expected Sum:", expected_sum)
-                assert_almost_equal(b_max_host[b], expected_max, atol=1e-5, rtol=1e-5)
-                assert_almost_equal(b_sum_host[b], expected_sum, atol=1e-5, rtol=1e-5)
+                print(
+                    "Block",
+                    b,
+                    "GPU Max:",
+                    b_max_host[b],
+                    "Expected Max:",
+                    expected_max,
+                )
+                print(
+                    "Block",
+                    b,
+                    "GPU Sum:",
+                    b_sum_host[b],
+                    "Expected Sum:",
+                    expected_sum,
+                )
+                assert_almost_equal(
+                    b_max_host[b], expected_max, atol=1e-5, rtol=1e-5
+                )
+                assert_almost_equal(
+                    b_sum_host[b], expected_sum, atol=1e-5, rtol=1e-5
+                )
         print("Pass 1 (softmax_block_reduce_kernel) Passed! 🎉\n")
 
 
@@ -213,13 +231,29 @@ def test_softmax_global_reduce() raises:
         var expected_global_sum: Float32 = 0.0
         with block_max_buf.map_to_host() as b_max_host, block_sum_buf.map_to_host() as b_sum_host:
             for b in range(GRID_DIM_MULTI):
-                expected_global_sum += b_sum_host[b] * exp(b_max_host[b] - expected_global_max)
+                expected_global_sum += b_sum_host[b] * exp(
+                    b_max_host[b] - expected_global_max
+                )
 
         with global_stats_buf.map_to_host() as stats_host:
-            print("GPU Global Max:", stats_host[0], "Expected:", expected_global_max)
-            print("GPU Global Sum:", stats_host[1], "Expected:", expected_global_sum)
-            assert_almost_equal(stats_host[0], expected_global_max, atol=1e-5, rtol=1e-5)
-            assert_almost_equal(stats_host[1], expected_global_sum, atol=1e-5, rtol=1e-5)
+            print(
+                "GPU Global Max:",
+                stats_host[0],
+                "Expected:",
+                expected_global_max,
+            )
+            print(
+                "GPU Global Sum:",
+                stats_host[1],
+                "Expected:",
+                expected_global_sum,
+            )
+            assert_almost_equal(
+                stats_host[0], expected_global_max, atol=1e-5, rtol=1e-5
+            )
+            assert_almost_equal(
+                stats_host[1], expected_global_sum, atol=1e-5, rtol=1e-5
+            )
         print("Pass 2 (softmax_global_reduce_kernel) Passed! 🎉\n")
 
 
@@ -266,7 +300,9 @@ def test_softmax_normalize() raises:
 
 
 def test_softmax_challenge() raises:
-    print("=== Running Multi-Block Buffer Reduction Softmax Integration Test ===")
+    print(
+        "=== Running Multi-Block Buffer Reduction Softmax Integration Test ==="
+    )
     with DeviceContext() as ctx:
         # Primary buffers
         var out = ctx.enqueue_create_buffer[dtype](SIZE_MULTI)

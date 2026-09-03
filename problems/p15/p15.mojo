@@ -59,7 +59,7 @@ def axis_sum(
             shared[local_i] += shared[local_i + offset]
         barrier()
         offset *= 2
-    
+
     if local_i == 0:
         output[batch, 0] = shared[0]
 
