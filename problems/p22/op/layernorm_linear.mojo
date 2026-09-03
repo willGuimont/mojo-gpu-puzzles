@@ -150,9 +150,25 @@ def layernorm_kernel[
 
     # Compute statistics for this sequence position (redundant but simple)
     var sum_val: Scalar[dtype] = 0
-    var sq_sum: Scalar[dtype] = 0
+    var sum_sq: Scalar[dtype] = 0
 
-    # FILL ME IN (roughly 11 lines)
+    # Compute mu, sigma^2
+    comptime for i in range(hidden_dim):
+        var xi = input_lt[batch_idx, seq_idx, i]
+        sum_val += rebind[Scalar[dtype]](xi)
+        sum_sq += rebind[Scalar[dtype]](xi * xi)
+
+    var mu = sum_val / Scalar[dtype](hidden_dim)
+    var sigma_2 = (sum_sq / Scalar[dtype](hidden_dim)) - (mu * mu)
+    comptime eps = 1e-5
+    var inv_sigma = 1.0 / sqrt(sigma_2 + eps)
+
+    # gamma_i * (x_i - mu) / sqrt(sigma_2 + eps) + beta
+    var xi = input_lt[batch_idx, seq_idx, hidden_idx]
+    var gamma = rebind[Scalar[dtype]](ln_weight_lt[hidden_idx])
+    var beta = rebind[Scalar[dtype]](ln_bias_lt[hidden_idx])
+    var nxi = (xi - mu) * inv_sigma * gamma + beta
+    output_lt[batch_idx, seq_idx, hidden_idx] = nxi
 
 
 # ANCHOR_END: layernorm_kernel
@@ -277,12 +293,35 @@ def minimal_fused_kernel[
     var linear_bias_lt = linear_bias.to_layout_tensor()
 
     # Step 1: Compute LayerNorm statistics once per sequence position
+    # Compute statistics for this sequence position (redundant but simple)
+    var sum_val: Scalar[dtype] = 0
+    var sum_sq: Scalar[dtype] = 0
 
-    # FILL IN roughly 10 lines
+    # Compute mu, sigma^2
+    comptime for i in range(hidden_dim):
+        var xi = input_lt[batch_idx, seq_idx, i]
+        sum_val += rebind[Scalar[dtype]](xi)
+        sum_sq += rebind[Scalar[dtype]](xi * xi)
+
+    var mu = sum_val / Scalar[dtype](hidden_dim)
+    var sigma_2 = (sum_sq / Scalar[dtype](hidden_dim)) - (mu * mu)
+    comptime eps = 1e-5
+    var inv_sigma = 1.0 / sqrt(sigma_2 + eps)
 
     # Step 2: Compute all outputs for this sequence position
-
-    # FILL IN roughly 10 lines
+    # Apply LayerNorm -> Linear
+    # nxi = gamma_i * (x_i - mu) / sqrt(sigma_2 + eps) + beta
+    # Wx + b, sum over i -> Wi * nxi + b
+    comptime for out_idx in range(output_dim):
+        var out: Scalar[dtype] = 0
+        comptime for hi in range(hidden_dim):
+            var xi = input_lt[batch_idx, seq_idx, hi]
+            var gamma = rebind[Scalar[dtype]](ln_weight_lt[hi])
+            var beta = rebind[Scalar[dtype]](ln_bias_lt[hi])
+            var nxi = (xi - mu) * inv_sigma * gamma + beta
+            out += rebind[Scalar[dtype]](nxi * linear_weight_lt[out_idx, hi])
+        var b = rebind[Scalar[dtype]](linear_bias_lt[out_idx])
+        output_lt[batch_idx, seq_idx, out_idx] = out + b
 
 
 # ANCHOR_END: minimal_fused_forward_kernel
@@ -356,10 +395,19 @@ def minimal_fused_kernel_backward[
     # The atomic operations will handle synchronization across blocks.
 
     # Step 1: Recompute forward pass statistics (needed for gradients)
-    var sum_val: Scalar[dtype] = 0
-    var sq_sum: Scalar[dtype] = 0
+    var sum_val: Scalar[dtype] = 0.0
+    var sum_sq: Scalar[dtype] = 0.0
 
-    # FILL IN roughly 8 lines
+    # Compute mu, sigma^2
+    comptime for i in range(hidden_dim):
+        var xi = input_lt[batch_idx, seq_idx, i]
+        sum_val += rebind[Scalar[dtype]](xi)
+        sum_sq += rebind[Scalar[dtype]](xi * xi)
+
+    var mu = sum_val / Scalar[dtype](hidden_dim)
+    var sigma_2 = (sum_sq / Scalar[dtype](hidden_dim)) - (mu * mu)
+    comptime eps = 1e-5
+    var inv_sigma = 1.0 / sqrt(sigma_2 + eps)
 
     # Step 2: Atomically accumulate gradients w.r.t. linear bias
 
