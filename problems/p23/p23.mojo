@@ -47,8 +47,18 @@ def elementwise_add[
 ) raises:
     @always_inline
     def add[simd_width: Int, alignment: Int = 1](indices: Coord) {var} -> None:
+        # Start index
         var idx = Int(indices[0].value())
-        # FILL IN (2 to 4 lines)
+        var ii = Index(idx)
+        var a_lt = a.to_layout_tensor()
+        var b_lt = b.to_layout_tensor()
+        var out_lt = output.to_layout_tensor()
+
+        # Load simd_width elements starting at idx
+        var a_simd = a_lt.aligned_load[width=simd_width](ii)
+        var b_simd = b_lt.aligned_load[width=simd_width](ii)
+        var sum = a_simd + b_simd
+        out_lt.store[simd_width](ii, sum)
 
     elementwise[simd_width=SIMD_WIDTH, target="gpu"](add, Coord(size), ctx)
 
@@ -79,11 +89,18 @@ def tiled_elementwise_add[
     ](indices: Coord) {var} -> None:
         var tile_id = Int(indices[0].value())
 
+        # Get the tile_id'th tile of size tile_size
         var output_tile = output.tile[tile_size](tile_id).to_layout_tensor()
         var a_tile = a.tile[tile_size](tile_id).to_layout_tensor()
         var b_tile = b.tile[tile_size](tile_id).to_layout_tensor()
 
-        # FILL IN (6 lines at most)
+        # One thread handles tile_size elements
+        comptime for i in range(tile_size):
+            var ii = Index(i)
+            var a_simd = a_tile.aligned_load[width=simd_width](ii)
+            var b_simd = b_tile.aligned_load[width=simd_width](ii)
+            var sum = a_simd + b_simd
+            output_tile.store[simd_width](ii, sum)
 
     var num_tiles = (size + tile_size - 1) // tile_size
     elementwise[simd_width=1, target="gpu"](
@@ -122,7 +139,15 @@ def manual_vectorized_tiled_elementwise_add[
         var b_lt = b.to_layout_tensor()
         var out_lt = output.to_layout_tensor()
 
-        # FILL IN (7 lines at most)
+        # One thread handles tile_size elements
+        comptime for i in range(tile_size):
+            # Since we do not use tiles, need to compute idx
+            var idx = tile_id * chunk_size + i * simd_width
+            var ii = Index(idx)
+            var a_simd = a_lt.aligned_load[width=simd_width](ii)
+            var b_simd = b_lt.aligned_load[width=simd_width](ii)
+            var sum = a_simd + b_simd
+            out_lt.store[simd_width](ii, sum)
 
     # Number of tiles needed: each tile processes chunk_size elements
     var num_tiles = (size + chunk_size - 1) // chunk_size
@@ -163,7 +188,18 @@ def vectorize_within_tiles_elementwise_add[
         var b_lt = b.to_layout_tensor()
         var out_lt = output.to_layout_tensor()
 
-        # FILL IN (9 lines at most)
+        def vector_add[
+            width: Int
+        ](i: Int) {imm tile_start, imm a_lt, imm b_lt, mut out_lt}:
+            var global_idx = tile_start + i
+            if global_idx + width <= size:
+                var ii = Index(global_idx)
+                var a_simd = a_lt.aligned_load[width](ii)
+                var b_simd = b_lt.aligned_load[width](ii)
+                var sum = a_simd + b_simd
+                out_lt.store[width](ii, sum)
+
+        vectorize[simd_width](actual_tile_size, vector_add)
 
     var num_tiles = (size + tile_size - 1) // tile_size
     elementwise[simd_width=num_threads_per_tile, target="gpu"](
@@ -211,6 +247,8 @@ def benchmark_elementwise_parameterized[
 
     bencher_iter_custom(b, elementwise_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
@@ -251,6 +289,8 @@ def benchmark_tiled_parameterized[
 
     bencher_iter_custom(b, tiled_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
@@ -291,6 +331,8 @@ def benchmark_manual_vectorized_parameterized[
 
     bencher_iter_custom(b, manual_vectorized_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
@@ -331,6 +373,8 @@ def benchmark_vectorized_parameterized[
 
     bencher_iter_custom(b, vectorized_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 

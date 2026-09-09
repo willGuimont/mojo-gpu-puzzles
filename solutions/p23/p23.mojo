@@ -242,6 +242,8 @@ def benchmark_elementwise_parameterized[
 
     bencher_iter_custom(b, elementwise_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
@@ -282,6 +284,8 @@ def benchmark_tiled_parameterized[
 
     bencher_iter_custom(b, tiled_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
@@ -322,6 +326,8 @@ def benchmark_manual_vectorized_parameterized[
 
     bencher_iter_custom(b, manual_vectorized_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
@@ -362,6 +368,8 @@ def benchmark_vectorized_parameterized[
 
     bencher_iter_custom(b, vectorized_workflow, bench_ctx)
     keep(out.unsafe_ptr())
+    keep(a.unsafe_ptr())
+    keep(b_buf.unsafe_ptr())
     bench_ctx.synchronize()
 
 
