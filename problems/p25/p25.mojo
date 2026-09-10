@@ -42,7 +42,13 @@ def neighbor_difference[
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var lane = Int(lane_id())
 
-    # FILL IN (roughly 7 lines)
+    var current_value = input[global_i]
+    var next_val = shuffle_down(current_value, 1)
+    if lane < WARP_SIZE - 1:
+        var delta = next_val - current_value
+        output[global_i] = delta
+    else:
+        output[global_i] = 0
 
 
 # ANCHOR_END: neighbor_difference
@@ -70,34 +76,22 @@ def moving_average_3[
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var lane = Int(lane_id())
 
-    # FILL IN (roughly 10 lines)
+    if global_i < size:
+        var s1 = input[global_i]
+        var s2 = shuffle_down(s1, 1)
+        # Could be shuffle_down(s2, 1), but I guess this forces serial reads
+        var s3 = shuffle_down(s1, 2)
+        if lane < WARP_SIZE - 2 and global_i < size - 2:
+            var res = (s1 + s2 + s3) / 3
+            output[global_i] = res
+        elif lane < WARP_SIZE - 1 and global_i < size - 1:
+            var res = (s1 + s2) / 2
+            output[global_i] = res
+        else:
+            output[global_i] = s1
 
 
 # ANCHOR_END: moving_average_3
-
-
-# ANCHOR: broadcast_shuffle_coordination
-def broadcast_shuffle_coordination[
-    size: Int
-](
-    output: TileTensor[mut=True, dtype, LayoutType, MutAnyOrigin],
-    input: TileTensor[mut=False, dtype, LayoutType, MutAnyOrigin],
-):
-    """
-    Combine broadcast() and shuffle_down() for advanced warp coordination.
-    Lane 0 computes block-local scaling factor, broadcasts it to all lanes in the warp.
-    Each lane uses shuffle_down() for neighbor access and applies broadcast factor.
-    """
-    var global_i = block_dim.x * block_idx.x + thread_idx.x
-    var lane = Int(lane_id())
-
-    if global_i < size:
-        var scale_factor: output.ElementType = 0.0
-
-        # FILL IN (roughly 14 lines)
-
-
-# ANCHOR_END: broadcast_shuffle_coordination
 
 
 # ANCHOR: basic_broadcast
@@ -117,7 +111,15 @@ def basic_broadcast[
     if global_i < size:
         var broadcast_value: output.ElementType = 0.0
 
-        # FILL IN (roughly 10 lines)
+        if lane == 0:
+            var b_start = block_idx.x * block_dim.x
+            var s: Scalar[dtype] = 0
+            comptime for i in range(4):
+                if b_start + i < size:
+                    s += input[b_start + i]
+            broadcast_value = s
+        broadcast_value = broadcast(broadcast_value)
+        output[global_i] = broadcast_value + input[global_i]
 
 
 # ANCHOR_END: basic_broadcast
@@ -140,7 +142,16 @@ def conditional_broadcast[
     if global_i < size:
         var decision_value: output.ElementType = 0.0
 
-        # FILL IN (roughly 10 lines)
+        # Find max in first 8 elements
+        if lane == 0:
+            var b_start = block_idx.x * block_dim.x
+            decision_value = input[b_start] if b_start < size else 0.0
+            for i in range(1, min(8, min(WARP_SIZE, size - b_start))):
+                if b_start + i < size:
+                    var x = input[b_start + i]
+                    if x > decision_value:
+                        decision_value = x
+        decision_value = broadcast(decision_value)
 
         var current_input = input[global_i]
         var threshold = decision_value / 2.0
@@ -151,6 +162,46 @@ def conditional_broadcast[
 
 
 # ANCHOR_END: conditional_broadcast
+
+
+# ANCHOR: broadcast_shuffle_coordination
+def broadcast_shuffle_coordination[
+    size: Int
+](
+    output: TileTensor[mut=True, dtype, LayoutType, MutAnyOrigin],
+    input: TileTensor[mut=False, dtype, LayoutType, MutAnyOrigin],
+):
+    """
+    Combine broadcast() and shuffle_down() for advanced warp coordination.
+    Lane 0 computes block-local scaling factor, broadcasts it to all lanes in the warp.
+    Each lane uses shuffle_down() for neighbor access and applies broadcast factor.
+    """
+    var global_i = block_dim.x * block_idx.x + thread_idx.x
+    var lane = Int(lane_id())
+
+    if global_i < size:
+        var scale_factor: output.ElementType = 0.0
+
+        if lane == 0:
+            var b_start = block_idx.x * block_dim.x
+            var s: Scalar[dtype] = 0
+            comptime for i in range(4):
+                if b_start + i < size:
+                    s += input[b_start + i]
+            scale_factor = s / 4
+
+        scale_factor = broadcast(scale_factor)
+
+        var current_val = input[global_i]
+        var next_val = shuffle_down(current_val, 1)
+
+        if lane < WARP_SIZE - 1:
+            output[global_i] = (current_val + next_val) * scale_factor
+        else:
+            output[global_i] = current_val * scale_factor
+
+
+# ANCHOR_END: broadcast_shuffle_coordination
 
 
 def test_neighbor_difference() raises:
