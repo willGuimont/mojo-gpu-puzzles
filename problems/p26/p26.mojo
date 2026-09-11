@@ -42,7 +42,10 @@ def butterfly_pair_swap[
     """
     var global_i = block_dim.x * block_idx.x + thread_idx.x
 
-    # FILL ME IN (4 lines)
+    if global_i < size:
+        var x = input[global_i]
+        var y = shuffle_xor(x, 1)
+        output[global_i] = y
 
 
 # ANCHOR_END: butterfly_pair_swap
@@ -63,7 +66,14 @@ def butterfly_parallel_max[
     """
     var global_i = block_dim.x * block_idx.x + thread_idx.x
 
-    # FILL ME IN (roughly 7 lines)
+    if global_i < size:
+        var max_value = input[global_i]
+        var offset = WARP_SIZE // 2
+        while offset > 0:
+            var y = shuffle_xor(max_value, UInt32(offset))
+            max_value = max(max_value, y)
+            offset //= 2
+        output[global_i] = max_value
 
 
 # ANCHOR_END: butterfly_parallel_max
@@ -93,9 +103,22 @@ def butterfly_conditional_max[
 
     if global_i < size:
         var current_val = input[global_i]
+        var max_val = current_val
         var min_val = current_val
 
-        # FILL ME IN (roughly 11 lines)
+        var offset = WARP_SIZE // 2
+        while offset > 0:
+            var y = shuffle_xor(max_val, UInt32(offset))
+            max_val = max(max_val, y)
+
+            y = shuffle_xor(min_val, UInt32(offset))
+            min_val = min(min_val, y)
+            offset //= 2
+
+        if lane % 2 == 0:
+            output[global_i] = max_val
+        else:
+            output[global_i] = min_val
 
 
 # ANCHOR_END: butterfly_conditional_max
@@ -129,7 +152,10 @@ def warp_inclusive_prefix_sum[
     """
     var global_i = block_dim.x * block_idx.x + thread_idx.x
 
-    # FILL ME IN (roughly 4 lines)
+    if global_i < size:
+        var x = input[global_i]
+        var s = prefix_sum(x)
+        output[global_i] = s
 
 
 # ANCHOR_END: warp_inclusive_prefix_sum
@@ -164,7 +190,37 @@ def warp_partition[
     if global_i < size:
         var current_val = input[global_i]
 
-        # FILL ME IN (roughly 13 lines)
+        #        [3, 7, 1, 8, 2, 9, 4, 6]
+        # left:  [1, 0, 1, 0, 1, 0, 1, 0]
+        # right: [0, 1, 0, 1, 0, 1, 0, 1]
+        var is_left = Scalar[dtype](1 if current_val < pivot else 0)
+        var is_right = Scalar[dtype](1 if current_val >= pivot else 0)
+
+        # Cummulative sum of the left and right before current position
+        # left:  [1, 0, 1, 0, 1, 0, 1, 0]
+        # sum:   [0, 1, 1, 2, 2, 3, 3, 4]
+        # right: [0, 1, 0, 1, 0, 1, 0, 1]
+        # sum:   [0, 0, 1, 1, 2, 2, 3, 3]
+        # Basically the index (or offset for right) in the output
+        # e.g., the 2 in the input should be at index 2 in the output
+        # e.g., 9 is at index 2 in the right part (so index 2 + 4)
+        var warp_left = prefix_sum[exclusive=True](is_left)
+        var warp_right = prefix_sum[exclusive=True](is_right)
+
+        # Compute total number of values smaller than pivot, used to compute right index
+        var num_left = (
+            is_left  # Start at is_left because warp_left is exclusive
+        )
+        var offset = WARP_SIZE // 2
+        while offset > 0:
+            num_left += shuffle_xor(num_left, UInt32(offset))
+            offset //= 2
+
+        # Store the output, see comments above
+        if current_val < pivot:
+            output[Int(warp_left)] = current_val
+        else:
+            output[Int(num_left + warp_right)] = current_val
 
 
 # ANCHOR_END: warp_partition
