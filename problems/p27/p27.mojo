@@ -49,7 +49,14 @@ def block_sum_dot_product[
     var global_i = block_dim.x * block_idx.x + thread_idx.x
     var local_i = thread_idx.x
 
-    # FILL IN (roughly 6 lines)
+    var s: Scalar[dtype] = 0
+    if global_i < size:
+        s = a[global_i] * b[global_i]
+
+    var total = block.sum[block_size=tpb, broadcast=False](s)
+
+    if local_i == 0:
+        output[0] = total[0]
 
 
 # ANCHOR_END: block_sum_dot_product
@@ -127,25 +134,42 @@ def block_histogram_bin_extract[
     var local_i = thread_idx.x
 
     # Step 1: Each thread determines its bin and element value
-
-    # FILL IN (roughly 9 lines)
+    var current_val: Scalar[dtype] = 0.0
+    var bin_idx: Int = 1
+    if global_i < size:
+        current_val = input_data[global_i]
+        # Because values are in [0, 1)
+        bin_idx = Int(floor(current_val * Scalar[dtype](num_bins)))
+        # Clamp bins to [0, num_bins)
+        if bin_idx >= num_bins:
+            bin_idx = num_bins - 1
+        if bin_idx < 0:
+            bin_idx = 0
 
     # Step 2: Create predicate for target bin extraction
-
-    # FILL IN (roughly 3 line)
+    var is_in_target: Int = 0
+    if global_i < size and bin_idx == target_bin:
+        is_in_target = 1
 
     # Step 3: Use block.prefix_sum() for parallel bin extraction!
     # This computes where each thread should write within the target bin
-
-    # FILL IN (1 line)
+    # Since we want to also output the values in the bin to bin_output, we need to know the index to write to
+    # So we do cumulative sum to know the running total of values before the current value (exclusive prefix sum)
+    var val_idx = block.prefix_sum[
+        dtype=DType.int32, block_size=tpb, exclusive=True
+    ](val=Int32(is_in_target))
 
     # Step 4: Extract and pack elements belonging to target_bin
-
-    # FILL IN (roughly 2 line)
+    # Only the thread with is_in_target should write (since they correspond to values in bins)
+    if is_in_target == 1:
+        bin_output[val_idx] = current_val
 
     # Step 5: Final thread computes total count for this bin
-
-    # FILL IN (roughly 3 line)
+    # Get the last thread, val_idx should be the exclusive count
+    if local_i == tpb - 1:
+        # Since val_idx is the exclusive count, the last value might or might not be in the bin
+        var t = val_idx + Int32(is_in_target)
+        count_output[0] = t
 
 
 # ANCHOR_END: block_histogram
@@ -164,7 +188,7 @@ def block_normalize_vector[
 ):
     """Vector mean normalization using block.sum() + block.broadcast() combination.
 
-    This demonstrates the complete block operations workflow:
+    This demonstrates the complete _block_reduceblock operations workflow:
     1. Use block.sum() to compute sum of all elements (all -> one)
     2. Thread 0 computes mean = sum / size
     3. Use block.broadcast() to share mean to all threads (one -> all)
@@ -176,25 +200,34 @@ def block_normalize_vector[
     var local_i = thread_idx.x
 
     # Step 1: Each thread loads its element
+    var value: Scalar[dtype] = 0
+    if global_i < size:
+        value = input_data[global_i]
 
-    # FILL IN (roughly 3 lines)
+    # # Step 2: Use block.sum() to compute total sum (familiar from earlier!)
+    # var t = block.sum[block_size=tpb, broadcast=False](value)
 
-    # Step 2: Use block.sum() to compute total sum (familiar from earlier!)
+    # # Step 3: Thread 0 computes mean value
+    # var mu: Scalar[dtype] = 1.0
+    # if local_i == 0:
+    #     if t > 0:
+    #         mu = t / Scalar[dtype](size)
 
-    # FILL IN (1 line)
+    # # Step 4: block.broadcast() shares mean to ALL threads!
+    # # This completes the block operations trilogy demonstration
+    # var bmu = block.broadcast[dtype=DType.float32, width=1, block_size=tpb](val=Float32(mu), src_thread=0)
 
-    # Step 3: Thread 0 computes mean value
+    # # Step 5: Each thread normalizes by the mean
+    # if global_i < size:
+    #     output_data[global_i] = value / bmu
 
-    # FILL IN (roughly 4 lines)
-
-    # Step 4: block.broadcast() shares mean to ALL threads!
-    # This completes the block operations trilogy demonstration
-
-    # FILL IN (1 line)
-
-    # Step 5: Each thread normalizes by the mean
-
-    # FILL IN (roughly 3 lines)
+    # Alternative with broadcast sum
+    var t = block.sum[block_size=tpb, broadcast=True](value)
+    var mu: Scalar[dtype] = 1.0
+    if t > 0:
+        mu = t / Scalar[dtype](size)
+    if global_i < size:
+        output_data[global_i] = value / mu
 
 
 # ANCHOR_END: block_normalize
